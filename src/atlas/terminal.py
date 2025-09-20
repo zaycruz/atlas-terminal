@@ -1,17 +1,27 @@
 """Interactive terminal experience for the Atlas CLI."""
 from __future__ import annotations
 
+import atexit
 import cmd
+import readline
 import shlex
 from dataclasses import asdict
+from pathlib import Path
 from typing import Iterable, Optional
 
 from rich.console import Console
 from rich.table import Table
+from termcolor import colored
 
 from .brokers import Account, AlpacaBroker, Order, Position
 from .brokers.base import BrokerError
+from .environment import APP_DIR
 
+HISTORY_FILE = APP_DIR / "history.txt"
+
+
+# ---------------------------------------------------------------------------
+# Shared render helpers (also used by the CLI commands)
 
 def render_account(console: Console, environment: str, account: Account) -> None:
     table = Table(title=f"Account ({environment})")
@@ -50,7 +60,7 @@ def render_positions(console: Console, positions: Iterable[Position]) -> None:
         )
 
     if count == 0:
-        console.print("No open positions.")
+        console.print(colored("No open positions.", "yellow"))
     else:
         console.print(table)
 
@@ -84,7 +94,7 @@ def render_orders(console: Console, orders: Iterable[Order], status: Optional[st
         )
 
     if count == 0:
-        console.print("No orders found.")
+        console.print(colored("No orders found.", "yellow"))
     else:
         console.print(table)
 
@@ -98,23 +108,81 @@ def render_quote(console: Console, symbol: str, quote: dict[str, object]) -> Non
     console.print(table)
 
 
-class AtlasTerminal(cmd.Cmd):
-    """A small REPL for interacting with an Alpaca trading account."""
+# ---------------------------------------------------------------------------
+# Terminal implementation
 
-    intro = "Welcome to Atlas. Type 'help' to list commands, 'quit' to exit."
-    prompt = "atlas> "
+class AtlasTerminal(cmd.Cmd):
+    """REPL for interacting with an Alpaca trading account."""
 
     def __init__(self, broker: AlpacaBroker, environment: str, console: Optional[Console] = None) -> None:
         super().__init__()
         self._broker = broker
         self._env = environment
         self.console = console or Console()
+        self.prompt = colored("atlas: ", "green")
+        self.intro = self._create_welcome_banner()
+        self.history_file = HISTORY_FILE
+        self._load_history()
+        atexit.register(self._save_history)
+
+    # ------------------------------------------------------------------
+    # Setup helpers
+    def _load_history(self) -> None:
+        self.history_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            readline.read_history_file(self.history_file)
+        except FileNotFoundError:
+            pass
+
+    def _save_history(self) -> None:
+        try:
+            readline.write_history_file(self.history_file)
+        except FileNotFoundError:
+            pass
+
+    def _create_welcome_banner(self) -> str:
+        banner_lines = [
+            "    ╭─────────────────────────────────────────────────────────╮",
+            "    │                                                         │",
+            "    │     █████╗ ████████╗██╗      █████╗ ███████╗            │",
+            "    │    ██╔══██╗╚══██╔══╝██║     ██╔══██╗██╔════╝            │",
+            "    │    ███████║   ██║   ██║     ███████║███████╗            │",
+            "    │    ██╔══██║   ██║   ██║     ██╔══██║╚════██║            │",
+            "    │    ██║  ██║   ██║   ███████╗██║  ██║███████║            │",
+            "    │    ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝            │",
+            "    │                                                         │",
+            "    │           🚀 Advanced Trading Terminal 🚀               │",
+            "    ╰─────────────────────────────────────────────────────────╯",
+        ]
+        colored_lines = [colored(line, "cyan") for line in banner_lines]
+        tips = [
+            "",
+            colored("Tips:", "yellow"),
+            colored("1. Type 'help' to list commands.", "white"),
+            colored("2. Use 'account', 'positions', 'orders' to explore.", "white"),
+            colored("3. 'buy' and 'sell' submit market orders.", "white"),
+            colored("4. 'quote' fetches the latest bid/ask.", "white"),
+            colored("5. 'env' shows whether you are in paper or live mode.", "white"),
+            "",
+        ]
+        return "\n".join(colored_lines + tips)
 
     def _handle_error(self, exc: Exception) -> None:
-        message = str(exc)
-        if not message:
-            message = exc.__class__.__name__
-        self.console.print(f"[red]{message}[/red]")
+        message = str(exc) or exc.__class__.__name__
+        self.console.print(colored(message, "red"))
+
+    # ------------------------------------------------------------------
+    # Built-in hooks
+    def preloop(self) -> None:  # type: ignore[override]
+        if self.intro:
+            print(self.intro)
+
+    def emptyline(self) -> None:  # type: ignore[override]
+        # Avoid repeating the previous command automatically
+        pass
+
+    def default(self, line: str) -> None:  # type: ignore[override]
+        self.console.print(colored(f"Unknown command: {line}", "yellow"))
 
     # ------------------------------------------------------------------
     # Commands
@@ -151,13 +219,13 @@ class AtlasTerminal(cmd.Cmd):
         try:
             symbol, qty = shlex.split(arg)
         except ValueError:
-            self.console.print("Usage: buy SYMBOL QTY")
+            self.console.print(colored("Usage: buy SYMBOL QTY", "yellow"))
             return
 
         try:
             quantity = float(qty)
         except ValueError:
-            self.console.print("Quantity must be numeric (e.g. 1 or 0.5).")
+            self.console.print(colored("Quantity must be numeric (e.g. 1 or 0.5).", "yellow"))
             return
 
         try:
@@ -167,7 +235,8 @@ class AtlasTerminal(cmd.Cmd):
                 for k, v in asdict(order).items()
                 if k in {"id", "symbol", "qty", "side", "status"}
             }
-            self.console.print(f"[green]Submitted {side.upper()} order:[/green] {summary}")
+            self.console.print(colored(f"Submitted {side.upper()} order", "green"))
+            self.console.print(summary)
         except Exception as exc:
             self._handle_error(exc)
 
@@ -183,11 +252,11 @@ class AtlasTerminal(cmd.Cmd):
         """cancel ORDER_ID -- cancel an existing order."""
         order_id = arg.strip()
         if not order_id:
-            self.console.print("Usage: cancel ORDER_ID")
+            self.console.print(colored("Usage: cancel ORDER_ID", "yellow"))
             return
         try:
             self._broker.cancel_order(order_id)
-            self.console.print(f"[green]Canceled order {order_id}.[/green]")
+            self.console.print(colored(f"Canceled order {order_id}", "green"))
         except Exception as exc:
             self._handle_error(exc)
 
@@ -195,7 +264,7 @@ class AtlasTerminal(cmd.Cmd):
         """quote SYMBOL -- fetch the latest quote."""
         symbol = arg.strip().upper()
         if not symbol:
-            self.console.print("Usage: quote SYMBOL")
+            self.console.print(colored("Usage: quote SYMBOL", "yellow"))
             return
         try:
             quote = self._broker.get_latest_quote(symbol)
@@ -205,19 +274,15 @@ class AtlasTerminal(cmd.Cmd):
 
     def do_env(self, _: str) -> None:
         """Show the current trading environment."""
-        self.console.print(f"Environment: {self._env}")
+        self.console.print(colored(f"Environment: {self._env}", "cyan"))
 
     def do_quit(self, _: str) -> bool:  # type: ignore[override]
         """Exit the terminal."""
-        self.console.print("Bye.")
+        self.console.print(colored("Bye.", "cyan"))
         return True
 
     def do_exit(self, arg: str) -> bool:  # type: ignore[override]
         return self.do_quit(arg)
-
-    def emptyline(self) -> None:  # type: ignore[override]
-        # Avoid repeating the last command
-        pass
 
 
 def run_terminal(broker: AlpacaBroker, environment: str, console: Optional[Console] = None) -> None:

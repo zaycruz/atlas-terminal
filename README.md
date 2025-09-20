@@ -50,8 +50,10 @@ Launch the REPL experience to explore commands without leaving the shell:
 ```bash
 atlas terminal
 ```
-Commands inside the terminal mirror the CLI (`account`, `positions`, `orders`,
-`buy`, `sell`, `cancel`, `quote`). Type `help` for a list, `env` to see the
+Commands mirror the CLI (`account`, `positions`, `orders`, `buy`, `sell`,
+`cancel`, `quote`). The session greets you with the Atlas banner, keeps a
+persistent history in `~/.atlas/history.txt`, and uses color cues via
+`termcolor`/Rich to highlight status. Type `help` for a list, `env` to see the
 current paper/live mode, and `quit` to exit.
 
 ## Notes

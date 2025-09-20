@@ -5,6 +5,7 @@ import argparse
 from typing import Callable, Optional
 
 from rich.console import Console
+from termcolor import colored
 
 from .brokers import AlpacaBroker, AlpacaConfig
 from .brokers.base import BrokerError
@@ -38,7 +39,7 @@ def run_action(args: argparse.Namespace, action: ConsoleAction) -> int:
         broker = create_broker(env)
     except Exception as exc:
         message = str(exc) or exc.__class__.__name__
-        console.print(f"[red]{message}[/red]")
+        console.print(colored(message, "red"))
         return 2
 
     try:
@@ -46,7 +47,7 @@ def run_action(args: argparse.Namespace, action: ConsoleAction) -> int:
         return 0
     except (BrokerError, ValueError) as exc:
         message = str(exc) or exc.__class__.__name__
-        console.print(f"[red]{message}[/red]")
+        console.print(colored(message, "red"))
         return 1
 
 
@@ -78,22 +79,24 @@ def _parse_quantity(value: str) -> float:
 def handle_buy(broker: AlpacaBroker, _: str, args: argparse.Namespace) -> None:
     qty = _parse_quantity(args.qty)
     order = broker.submit_market_order(args.symbol, qty, "buy")
-    console.print(
-        f"[green]Submitted BUY order[/green] {order.symbol} qty={order.qty} status={order.status} id={order.id}"
-    )
+    console.print(colored(
+        f"Submitted BUY order {order.symbol} qty={order.qty} status={order.status} id={order.id}",
+        "green",
+    ))
 
 
 def handle_sell(broker: AlpacaBroker, _: str, args: argparse.Namespace) -> None:
     qty = _parse_quantity(args.qty)
     order = broker.submit_market_order(args.symbol, qty, "sell")
-    console.print(
-        f"[green]Submitted SELL order[/green] {order.symbol} qty={order.qty} status={order.status} id={order.id}"
-    )
+    console.print(colored(
+        f"Submitted SELL order {order.symbol} qty={order.qty} status={order.status} id={order.id}",
+        "green",
+    ))
 
 
 def handle_cancel(broker: AlpacaBroker, _: str, args: argparse.Namespace) -> None:
     broker.cancel_order(args.order_id)
-    console.print(f"[green]Canceled order {args.order_id}[/green]")
+    console.print(colored(f"Canceled order {args.order_id}", "green"))
 
 
 def handle_quote(broker: AlpacaBroker, _: str, args: argparse.Namespace) -> None:

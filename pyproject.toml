@@ -11,6 +11,7 @@ dependencies = [
     # Core trading/data SDK. Install with: pip install alpaca-py
     "alpaca-py>=0.30.0",
     "rich>=13.7.0",
+    "termcolor>=2.4.0",
 ]
 
 [tool.poetry]
