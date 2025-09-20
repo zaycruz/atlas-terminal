@@ -1,1 +1,64 @@
-# atlas-terminal
+# Atlas: Minimal Alpaca Terminal
+
+Atlas provides a focused command‑line experience for Alpaca trading. It ships with
+scriptable commands (account, positions, orders, buy/sell, quote) plus an
+interactive terminal shell that wraps the same broker layer.
+
+## Requirements
+- Python >= 3.13
+- Poetry (recommended) or pip
+- Dependencies: `alpaca-py`, `rich` (installed automatically by Poetry)
+- Environment variables: `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`
+
+## Environment setup
+```bash
+# Ensure the interpreter matches the project target
+poetry env use /opt/homebrew/opt/python@3.13/bin/python3.13
+poetry install
+
+# Load credentials via .env (auto-read on startup)
+cp .env.example .env
+# Edit .env and add ALPACA_API_KEY_ID/ALPACA_API_SECRET_KEY
+```
+
+You can also export credentials directly:
+```bash
+export ALPACA_API_KEY_ID=your_key
+export ALPACA_API_SECRET_KEY=your_secret
+```
+
+## Using the CLI
+```bash
+# Quick account snapshot (defaults to paper)
+atlas account
+
+# Specify live/paper explicitly
+atlas --env live positions
+
+# Order management
+atlas orders --status closed
+atlas buy AAPL 1
+atlas sell AAPL 0.5
+atlas cancel <order_id>
+
+# Market data (requires market data permissions)
+atlas quote AAPL
+```
+
+## Interactive terminal
+Launch the REPL experience to explore commands without leaving the shell:
+```bash
+atlas terminal
+```
+Commands inside the terminal mirror the CLI (`account`, `positions`, `orders`,
+`buy`, `sell`, `cancel`, `quote`). Type `help` for a list, `env` to see the
+current paper/live mode, and `quit` to exit.
+
+## Notes
+- `--env` (or `$ATLAS_ENV`) controls whether calls hit paper or live trading.
+- The broker layer lives in `src/atlas/brokers/` and powers both the CLI and
+  terminal.
+- Errors are surfaced directly from Alpaca; review them before re-running a
+  command.
+
+Happy trading!
