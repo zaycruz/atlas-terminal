@@ -4,7 +4,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from atlas.environment import load_dotenv, resolve_environment
+from atlas.environment import (
+    get_ai_model,
+    get_ai_system_prompt,
+    get_ollama_host,
+    load_dotenv,
+    resolve_environment,
+)
 
 
 class EnvironmentTests(unittest.TestCase):
@@ -38,6 +44,23 @@ class EnvironmentTests(unittest.TestCase):
             load_dotenv(env_path)
             self.assertEqual(os.environ["FOO"], "initial")
             self.assertEqual(os.environ["BAR"], "baz")
+
+    def test_get_ai_model_defaults_and_override(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(get_ai_model(None), "llama3.2")
+            self.assertEqual(get_ai_model("qwen"), "qwen")
+
+    def test_get_ai_model_env(self) -> None:
+        with patch.dict(os.environ, {"ATLAS_AI_MODEL": "phi"}, clear=True):
+            self.assertEqual(get_ai_model(None), "phi")
+
+    def test_get_ai_system_prompt(self) -> None:
+        with patch.dict(os.environ, {"ATLAS_AI_SYSTEM_PROMPT": "hi"}, clear=True):
+            self.assertEqual(get_ai_system_prompt(), "hi")
+
+    def test_get_ollama_host(self) -> None:
+        with patch.dict(os.environ, {"OLLAMA_HOST": "http://localhost:1234/"}, clear=True):
+            self.assertEqual(get_ollama_host(), "http://localhost:1234")
 
 
 if __name__ == "__main__":  # pragma: no cover

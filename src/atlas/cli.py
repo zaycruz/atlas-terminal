@@ -9,7 +9,14 @@ from termcolor import colored
 
 from .brokers import AlpacaBroker, AlpacaConfig
 from .brokers.base import BrokerError
-from .environment import get_alpaca_credentials, load_dotenv, resolve_environment
+from .environment import (
+    get_alpaca_credentials,
+    get_ai_model,
+    get_ai_system_prompt,
+    get_ollama_host,
+    load_dotenv,
+    resolve_environment,
+)
 from .terminal import (
     render_account,
     render_orders,
@@ -17,6 +24,7 @@ from .terminal import (
     render_quote,
     run_terminal,
 )
+from .ai import AIChatConfig, run_chat
 
 ConsoleAction = Callable[[AlpacaBroker, str, argparse.Namespace], None]
 
@@ -108,6 +116,17 @@ def handle_terminal(broker: AlpacaBroker, env: str, _: argparse.Namespace) -> No
     run_terminal(broker, env, console=console)
 
 
+def handle_ai(broker: AlpacaBroker, env: str, args: argparse.Namespace) -> None:
+    model = get_ai_model(getattr(args, "model", None))
+    config = AIChatConfig(
+        host=get_ollama_host(),
+        model=model,
+        system_prompt=get_ai_system_prompt(),
+        environment=env,
+    )
+    run_chat(broker, config, console=console)
+
+
 # ----------------------------------------------------------------------
 # CLI wiring
 
@@ -150,6 +169,10 @@ def build_parser() -> argparse.ArgumentParser:
     quote_parser.set_defaults(func=handle_quote)
 
     sub.add_parser("terminal", help="Launch the interactive Atlas terminal").set_defaults(func=handle_terminal)
+
+    ai_parser = sub.add_parser("ai", help="Launch Atlas AI chat mode")
+    ai_parser.add_argument("--model", help="Override the Ollama model to use")
+    ai_parser.set_defaults(func=handle_ai)
 
     return parser
 

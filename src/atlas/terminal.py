@@ -15,7 +15,7 @@ from termcolor import colored
 
 from .brokers import Account, AlpacaBroker, Order, Position
 from .brokers.base import BrokerError
-from .environment import APP_DIR
+from .environment import APP_DIR, get_ai_model, get_ai_system_prompt, get_ollama_host
 
 HISTORY_FILE = APP_DIR / "history.txt"
 
@@ -271,6 +271,19 @@ class AtlasTerminal(cmd.Cmd):
             render_quote(self.console, symbol, quote)
         except Exception as exc:
             self._handle_error(exc)
+
+    def do_ai(self, arg: str) -> None:
+        """ai [MODEL] -- enter AI chat mode (optional model override)."""
+        model_override = arg.strip() or None
+        from .ai import AIChatConfig, run_chat  # local import to avoid circular dependency
+
+        config = AIChatConfig(
+            host=get_ollama_host(),
+            model=get_ai_model(model_override),
+            system_prompt=get_ai_system_prompt(),
+            environment=self._env,
+        )
+        run_chat(self._broker, config, console=self.console)
 
     def do_env(self, _: str) -> None:
         """Show the current trading environment."""

@@ -56,11 +56,24 @@ persistent history in `~/.atlas/history.txt`, and uses color cues via
 `termcolor`/Rich to highlight status. Type `help` for a list, `env` to see the
 current paper/live mode, and `quit` to exit.
 
+## AI chat mode
+```bash
+atlas ai
+# or override the model
+atlas ai --model qwen2.5
+```
+The assistant connects to a local Ollama instance (`OLLAMA_HOST`, default
+`http://localhost:11434`) and uses tools to execute broker actions. Provide
+Alpaca credentials as usual; optional variables like `ATLAS_AI_MODEL` and
+`ATLAS_AI_SYSTEM_PROMPT` customize behavior. Inside the interactive terminal you
+can type `ai` to jump into the same experience.
+
 ## Notes
 - `--env` (or `$ATLAS_ENV`) controls whether calls hit paper or live trading.
 - The broker layer lives in `src/atlas/brokers/` and powers both the CLI and
   terminal.
 - Errors are surfaced directly from Alpaca; review them before re-running a
   command.
+- See `docs/ai_mode.md` for AI-mode architecture details.
 
 Happy trading!
