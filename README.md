@@ -43,6 +43,8 @@ atlas cancel <order_id>
 
 # Market data (requires market data permissions)
 atlas quote AAPL
+atlas options AAPL --expiration 2024-09-20
+atlas option-order AAPL240920C00200000 1 --side buy --intent buy_to_open --type limit --limit 2.50
 ```
 
 ## Interactive terminal
