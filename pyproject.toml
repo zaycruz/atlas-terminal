@@ -13,6 +13,7 @@ dependencies = [
     "requests>=2.32.0",
     "rich>=13.7.0",
     "termcolor>=2.4.0",
+    "fastmcp (>=2.12.3,<3.0.0)",
 ]
 
 [tool.poetry]

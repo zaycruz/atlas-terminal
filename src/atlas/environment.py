@@ -88,3 +88,24 @@ def get_ollama_host() -> str:
     """Return the base URL for the Ollama server."""
     host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
     return host.rstrip("/")
+
+
+MCP_ENDPOINT = os.environ.get("ATLAS_MCP_ENDPOINT", "http://localhost:3000")
+MCP_TOKEN = os.environ.get("ATLAS_MCP_TOKEN")
+DEFAULT_BACKTEST_IMAGE = os.environ.get("ATLAS_BACKTEST_IMAGE", "python:3.11-slim")
+
+
+def get_mcp_endpoint() -> str:
+    """Return the MCP server endpoint."""
+    return MCP_ENDPOINT
+
+
+def get_mcp_token() -> str | None:
+    """Return the optional MCP authentication token."""
+    token = MCP_TOKEN
+    return token.strip() if token else None
+
+
+def get_backtest_image() -> str:
+    """Return the default Docker image used for backtesting."""
+    return DEFAULT_BACKTEST_IMAGE
