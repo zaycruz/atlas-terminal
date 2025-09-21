@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import atexit
+import argparse
 import cmd
 import readline
 import shlex
 from dataclasses import asdict
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 from rich.console import Console
 from rich.table import Table
@@ -99,6 +100,59 @@ def render_orders(console: Console, orders: Iterable[Order], status: Optional[st
         console.print(table)
 
 
+
+
+def render_option_chain(console: Console, chain: dict[str, Any]) -> None:
+    """Pretty-print a small option chain snapshot."""
+    title = f"Options {chain['symbol']} {chain['expiration']}"
+    if chain.get("requested_expiration") and chain["requested_expiration"] and chain["requested_expiration"] != chain["expiration"]:
+        console.print(colored(
+            f"Requested expiration {chain['requested_expiration']} unavailable; showing {chain['expiration']}",
+            "yellow",
+        ))
+    if chain.get("underlying_price"):
+        console.print(f"Underlying: {chain['underlying_price']:.2f}")
+    if chain.get("available_expirations"):
+        console.print("Expirations: " + ", ".join(chain['available_expirations'][:8]))
+
+    table = Table(title=title)
+    table.add_column("Strike", justify="right")
+    table.add_column("Call Bid", justify="right")
+    table.add_column("Call Ask", justify="right")
+    table.add_column("Call Last", justify="right")
+    table.add_column("Call IV", justify="right")
+    table.add_column("Put Bid", justify="right")
+    table.add_column("Put Ask", justify="right")
+    table.add_column("Put Last", justify="right")
+    table.add_column("Put IV", justify="right")
+
+    for row in chain["rows"]:
+        call = row.get("call") or {}
+        put = row.get("put") or {}
+
+        def fmt(value: Optional[float], suffix: str = "") -> str:
+            if value is None:
+                return "-"
+            if suffix:
+                return f"{value:{suffix}}"
+            return f"{value:.2f}"
+
+        def fmt_iv(value: Optional[float]) -> str:
+            return fmt(value * 100 if value is not None else None, ".1f") + "%" if value is not None else "-"
+
+        table.add_row(
+            f"{row['strike']:.2f}",
+            fmt(call.get("bid")),
+            fmt(call.get("ask")),
+            fmt(call.get("last")),
+            fmt_iv(call.get("iv")),
+            fmt(put.get("bid")),
+            fmt(put.get("ask")),
+            fmt(put.get("last")),
+            fmt_iv(put.get("iv")),
+        )
+
+    console.print(table)
 def render_quote(console: Console, symbol: str, quote: dict[str, object]) -> None:
     table = Table(title=f"Quote {symbol.upper()}")
     table.add_column("Field")
@@ -260,6 +314,29 @@ class AtlasTerminal(cmd.Cmd):
         except Exception as exc:
             self._handle_error(exc)
 
+    def do_options(self, arg: str) -> None:
+        """options SYMBOL [--expiration YYYY-MM-DD] [--width N] [--type call|put]"""
+        parser = argparse.ArgumentParser(prog="options", add_help=False)
+        parser.add_argument("symbol")
+        parser.add_argument("--expiration")
+        parser.add_argument("--width", type=int, default=5)
+        parser.add_argument("--type", choices=["call", "put"])
+        try:
+            args = parser.parse_args(shlex.split(arg))
+        except SystemExit:
+            self.console.print("Usage: options SYMBOL [--expiration YYYY-MM-DD] [--width N] [--type call|put]")
+            return
+        try:
+            chain = self._broker.get_option_chain(
+                args.symbol,
+                expiration=args.expiration,
+                strikes=args.width,
+                option_type=args.type,
+            )
+            render_option_chain(self.console, chain)
+        except Exception as exc:
+            self._handle_error(exc)
+
     def do_quote(self, arg: str) -> None:
         """quote SYMBOL -- fetch the latest quote."""
         symbol = arg.strip().upper()
@@ -284,6 +361,38 @@ class AtlasTerminal(cmd.Cmd):
             environment=self._env,
         )
         run_chat(self._broker, config, console=self.console)
+
+    def do_optionorder(self, arg: str) -> None:
+        """optionorder SYMBOL QTY --side buy|sell [--intent ...] [--type market|limit] [--limit PRICE] [--tif day]"""
+        parser = argparse.ArgumentParser(prog="optionorder", add_help=False)
+        parser.add_argument("symbol")
+        parser.add_argument("qty", type=float)
+        parser.add_argument("--side", choices=["buy", "sell"], required=True)
+        parser.add_argument("--intent", choices=["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"])
+        parser.add_argument("--type", choices=["market", "limit"], default="market")
+        parser.add_argument("--limit", type=float)
+        parser.add_argument("--tif", default="day")
+        try:
+            args = parser.parse_args(shlex.split(arg))
+        except SystemExit:
+            self.console.print("Usage: optionorder SYMBOL QTY --side buy|sell [--intent ...] [--type market|limit] [--limit PRICE] [--tif day]")
+            return
+        try:
+            order = self._broker.submit_option_order(
+                option_symbol=args.symbol,
+                qty=args.qty,
+                side=args.side,
+                intent=args.intent,
+                order_type=args.type,
+                limit_price=args.limit,
+                time_in_force=args.tif,
+            )
+            self.console.print(colored(
+                f"Submitted option order {order.symbol} qty={order.qty} side={order.side} status={order.status} id={order.id}",
+                "green",
+            ))
+        except Exception as exc:
+            self._handle_error(exc)
 
     def do_env(self, _: str) -> None:
         """Show the current trading environment."""

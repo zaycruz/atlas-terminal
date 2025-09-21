@@ -22,6 +22,7 @@ from .terminal import (
     render_orders,
     render_positions,
     render_quote,
+    render_option_chain,
     run_terminal,
 )
 from .ai import AIChatConfig, run_chat
@@ -112,6 +113,33 @@ def handle_quote(broker: AlpacaBroker, _: str, args: argparse.Namespace) -> None
     render_quote(console, args.symbol, quote)
 
 
+
+def handle_option_order(broker: AlpacaBroker, _: str, args: argparse.Namespace) -> None:
+    order = broker.submit_option_order(
+        option_symbol=args.symbol,
+        qty=args.qty,
+        side=args.side,
+        intent=args.intent,
+        order_type=args.type,
+        limit_price=args.limit,
+        time_in_force=args.tif,
+    )
+    console.print(colored(
+        f"Submitted option order {order.symbol} qty={order.qty} side={order.side} status={order.status} id={order.id}",
+        "green",
+    ))
+
+def handle_options(broker: AlpacaBroker, _: str, args: argparse.Namespace) -> None:
+    chain = broker.get_option_chain(
+        args.symbol,
+        expiration=args.expiration,
+        strikes=args.width,
+        option_type=args.type,
+    )
+    render_option_chain(console, chain)
+
+
+
 def handle_terminal(broker: AlpacaBroker, env: str, _: argparse.Namespace) -> None:
     run_terminal(broker, env, console=console)
 
@@ -167,6 +195,23 @@ def build_parser() -> argparse.ArgumentParser:
     quote_parser = sub.add_parser("quote", help="Fetch the latest quote for a symbol")
     quote_parser.add_argument("symbol", help="Ticker symbol, e.g. AAPL")
     quote_parser.set_defaults(func=handle_quote)
+
+    options_parser = sub.add_parser("options", help="View options chain slice")
+    options_parser.add_argument("symbol", help="Underlying symbol, e.g. AAPL")
+    options_parser.add_argument("--expiration", help="Expiration date YYYY-MM-DD")
+    options_parser.add_argument("--width", type=int, default=5, help="Number of strikes each side of ATM")
+    options_parser.add_argument("--type", choices=["call", "put"], help="Filter by option type")
+    options_parser.set_defaults(func=handle_options)
+
+    option_order_parser = sub.add_parser("option-order", help="Submit a simple option order")
+    option_order_parser.add_argument("symbol", help="Option OCC symbol, e.g. AAPL240920C00200000")
+    option_order_parser.add_argument("qty", type=float, help="Number of contracts")
+    option_order_parser.add_argument("--side", choices=["buy", "sell"], required=True, help="Order side")
+    option_order_parser.add_argument("--intent", choices=["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"], help="Position intent")
+    option_order_parser.add_argument("--type", choices=["market", "limit"], default="market", help="Order type")
+    option_order_parser.add_argument("--limit", type=float, help="Limit price (required for limit orders)")
+    option_order_parser.add_argument("--tif", default="day", help="Time in force (day, gtc, opg, cls, ioc, fok)")
+    option_order_parser.set_defaults(func=handle_option_order)
 
     sub.add_parser("terminal", help="Launch the interactive Atlas terminal").set_defaults(func=handle_terminal)
 
