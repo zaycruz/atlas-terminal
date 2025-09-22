@@ -98,3 +98,30 @@ This document will be the reference while we implement the MCP-powered backtesti
 - `ATLAS_MCP_TOKEN` (optional auth token)
 - `ATLAS_BACKTEST_IMAGE` (default `python:3.11-slim`)
 
+
+## 7. Search backend
+- Atlas uses a self-hosted SearxNG instance for web research.
+- Run `docker run -p 8080:8080 searxng/searxng:latest` and expose JSON output.
+- Configure via `ATLAS_SEARXNG_ENDPOINT` / `ATLAS_SEARXNG_CATEGORIES`.
+
+- When running SearxNG via Docker, disable bot detection to allow the tool to call it: 
+  `docker run -d -e FILTER_HEADERS=false -e BOTDETECTION_ENABLED=false -p 8080:8080 searxng/searxng:latest`
+
+
+When deploying SearxNG, make sure the JSON API is enabled and bot detection is disabled so the agent can query it:
+
+```
+server:
+  bind_address: 0.0.0.0
+  port: 8080
+  filter_headers: false
+  method: "GET"
+
+botdetection:
+  enabled: false
+
+search:
+  formats:
+    - html
+    - json
+```

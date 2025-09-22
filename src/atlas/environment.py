@@ -109,3 +109,18 @@ def get_mcp_token() -> str | None:
 def get_backtest_image() -> str:
     """Return the default Docker image used for backtesting."""
     return DEFAULT_BACKTEST_IMAGE
+
+SEARXNG_ENDPOINT = os.environ.get("ATLAS_SEARXNG_ENDPOINT", "http://localhost:8080/search")
+SEARXNG_CATEGORIES = os.environ.get("ATLAS_SEARXNG_CATEGORIES")
+
+
+def get_searxng_endpoint() -> str:
+    """Return the SearxNG search endpoint."""
+    return SEARXNG_ENDPOINT.rstrip("/")
+
+
+def get_searxng_categories() -> list[str] | None:
+    """Return default categories for SearxNG searches."""
+    if not SEARXNG_CATEGORIES:
+        return None
+    return [part.strip() for part in SEARXNG_CATEGORIES.split(",") if part.strip()]
