@@ -6,8 +6,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Callable, Dict, Iterable, Mapping
 
+import requests
+from bs4 import BeautifulSoup
+
 from ..brokers import Account, AlpacaBroker, Order, Position
 from ..brokers.base import BrokerError
+from ..environment import get_searxng_categories, get_searxng_endpoint
 
 ToolHandler = Callable[[AlpacaBroker, Mapping[str, Any]], "ToolResult"]
 
@@ -111,6 +115,126 @@ def _cancel_tool(broker: AlpacaBroker, args: Mapping[str, Any]) -> ToolResult:
     return ToolResult(True, "cancel", {"order_id": order_id}, f"Canceled order {order_id}")
 
 
+
+def _search_tool(broker: AlpacaBroker, args: Mapping[str, Any]) -> ToolResult:
+    query = str(args.get("query", "")).strip()
+    if not query:
+        raise BrokerError("search tool requires 'query'")
+
+    endpoint = get_searxng_endpoint()
+    params = {
+        "q": query,
+        "format": "json",
+    }
+
+    categories = args.get("categories")
+    if categories:
+        if isinstance(categories, str):
+            params["categories"] = categories
+        else:
+            params["categories"] = ",".join(str(item) for item in categories)
+    else:
+        default_cats = get_searxng_categories()
+        if default_cats:
+            params["categories"] = ",".join(default_cats)
+
+    if args.get("engines"):
+        params["engines"] = args["engines"]
+    if args.get("language"):
+        params["language"] = args["language"]
+    if args.get("safesearch") is not None:
+        params["safesearch"] = args["safesearch"]
+
+    max_results = int(args.get("max_results", 5))
+    max_results = max(1, min(max_results, 10))
+    params["max_results"] = max_results
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/117.0",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Real-IP": "127.0.0.1",
+        "Accept": "application/json",
+        "Referer": "http://localhost",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    try:
+        response = requests.get(endpoint, params=params, headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        raise BrokerError(f"SearxNG request failed: {exc}") from exc
+
+    if response.status_code != 200:
+        raise BrokerError(f"SearxNG returned status {response.status_code}")
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise BrokerError("Failed to decode SearxNG response") from exc
+
+    results = [
+        {
+            "title": item.get("title"),
+            "url": item.get("url") or item.get("href"),
+            "snippet": item.get("content") or item.get("snippet") or item.get("body"),
+            "source": item.get("source"),
+        }
+        for item in payload.get("results", [])
+    ]
+
+    message = f"Top {len(results)} results for '{query}'" if results else "No results found"
+    return ToolResult(True, "search", results[:max_results], message)
+
+
+def _fetch_url_tool(broker: AlpacaBroker, args: Mapping[str, Any]) -> ToolResult:
+    url = str(args.get("url", "")).strip()
+    if not url:
+        raise BrokerError("fetch_url tool requires 'url'")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:117.0) Gecko/20100101 Firefox/117.0",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Real-IP": "127.0.0.1",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Referer": "http://localhost",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+    except requests.RequestException as exc:
+        raise BrokerError(f"Failed to fetch URL: {exc}") from exc
+
+    if response.status_code != 200:
+        raise BrokerError(f"Fetching URL returned status {response.status_code}")
+
+    content_type = response.headers.get("Content-Type", "")
+    if "text" not in content_type and "html" not in content_type:
+        raise BrokerError("URL did not return HTML content")
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    title = soup.title.string.strip() if soup.title and soup.title.string else None
+    raw_text = soup.get_text(separator="
+")
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    text_content = "
+".join(lines)
+    max_length = int(args.get("max_chars", 8000))
+    truncated = False
+    if len(text_content) > max_length:
+        text_content = text_content[:max_length].rstrip() + "…"
+        truncated = True
+
+    data = {
+        "url": url,
+        "title": title,
+        "text": text_content,
+        "truncated": truncated,
+    }
+    message = f"Fetched content from {url}" + (" (truncated)" if truncated else "")
+    return ToolResult(True, "fetch_url", data, message)
+
+
 def _quote_tool(broker: AlpacaBroker, args: Mapping[str, Any]) -> ToolResult:
     symbol = str(args.get("symbol", "")).strip().upper()
     if not symbol:
@@ -185,6 +309,23 @@ AVAILABLE_TOOLS: Dict[str, Tool] = {
             "required": ["order_id"],
         },
         handler=_cancel_tool,
+    ),
+    "search": Tool(
+        name="search",
+        description="Search the web via SearxNG",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "categories": {"type": "string", "description": "Comma-separated categories"},
+                "engines": {"type": "string", "description": "Comma-separated engines"},
+                "language": {"type": "string"},
+                "safesearch": {"type": "string", "description": "0/1/2 or off/moderate/strict"},
+                "max_results": {"type": "integer", "minimum": 1, "maximum": 10},
+            },
+            "required": ["query"],
+        },
+        handler=_search_tool,
     ),
     "quote": Tool(
         name="quote",

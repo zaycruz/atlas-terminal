@@ -79,3 +79,29 @@ can type `ai` to jump into the same experience.
 - See `docs/ai_mode.md` for AI-mode architecture details.
 
 Happy trading!
+
+### Web search
+Atlas expects a SearxNG instance for AI web searches.
+Run `docker run -p 8080:8080 searxng/searxng:latest` and set `ATLAS_SEARXNG_ENDPOINT` if needed.
+
+Run SearxNG in a relaxed mode for testing: `docker run -d -e FILTER_HEADERS=false -e BOTDETECTION_ENABLED=false -p 8080:8080 searxng/searxng:latest`
+
+
+Ensure your SearxNG settings.yml allows JSON format and relaxed headers, for example:
+
+```
+server:
+  bind_address: 0.0.0.0
+  port: 8080
+  filter_headers: false
+  method: "GET"
+
+botdetection:
+  enabled: false
+
+search:
+  formats:
+    - html
+    - json
+```
+
