@@ -1,9 +1,9 @@
-"""Central environment and configuration helpers for the Atlas CLI."""
+"""Central environment and configuration helpers for Atlas."""
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 SRC_DIR = PACKAGE_DIR.parent
@@ -14,6 +14,8 @@ APP_DIR = Path.home() / ".atlas"
 CONFIG_DIR = APP_DIR / "config"
 DATA_DIR = APP_DIR / "data"
 LOGS_DIR = APP_DIR / "logs"
+CACHE_DIR = APP_DIR / "cache"
+BACKTESTS_DIR = DATA_DIR / "backtests"
 
 
 def _ensure_directories(paths: Iterable[Path]) -> None:
@@ -21,7 +23,7 @@ def _ensure_directories(paths: Iterable[Path]) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
-_ensure_directories((APP_DIR, CONFIG_DIR, DATA_DIR, LOGS_DIR))
+_ensure_directories((APP_DIR, CONFIG_DIR, DATA_DIR, LOGS_DIR, CACHE_DIR, BACKTESTS_DIR))
 
 
 def load_dotenv(path: Optional[Path] = None) -> None:
@@ -46,49 +48,51 @@ def load_dotenv(path: Optional[Path] = None) -> None:
         os.environ.setdefault(key, value)
 
 
-def get_alpaca_credentials() -> Tuple[str, str]:
-    """Return Alpaca API credentials from the environment."""
-    api_key = os.environ.get("ALPACA_API_KEY_ID")
-    secret_key = os.environ.get("ALPACA_API_SECRET_KEY")
-    if not api_key or not secret_key:
-        missing = [
-            name
-            for name, value in (
-                ("ALPACA_API_KEY_ID", api_key),
-                ("ALPACA_API_SECRET_KEY", secret_key),
-            )
-            if not value
-        ]
-        raise RuntimeError(
-            "Missing required environment variables: " + ", ".join(missing)
-        )
-    return api_key, secret_key
+# ---------------------------------------------------------------------------
+# LLM Configuration (zai.org / GLM-4)
+# ---------------------------------------------------------------------------
+
+DEFAULT_LLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
+DEFAULT_LLM_MODEL = "glm-4.7"
+
+DEFAULT_SYSTEM_PROMPT = """You are Atlas, an AI-powered financial research assistant.
+You help users with:
+- Backtesting trading strategies
+- Probabilistic analysis and Monte Carlo simulations
+- ML regression and forecasting
+- Market research and thesis development
+- Monitoring macroeconomic events, Fed announcements, COT reports
+
+When users request analysis or backtests, use the available tools to execute their requests.
+Be concise but thorough. Explain your reasoning when providing analysis."""
 
 
-def resolve_environment(target: Optional[str]) -> str:
-    """Normalize the trading environment string."""
-    choice = (target or os.environ.get("ATLAS_ENV") or "paper").lower()
-    if choice not in {"paper", "live"}:
-        raise ValueError("Trading environment must be either 'paper' or 'live'.")
-    return choice
+def get_llm_api_key() -> str | None:
+    """Return the LLM API key."""
+    return os.environ.get("ZAI_API_KEY") or os.environ.get("ATLAS_LLM_API_KEY")
 
-DEFAULT_AI_PROMPT = "You are Atlas, a trading assistant. Use tools when helpful and confirm critical actions."
 
-def get_ai_model(override: Optional[str] = None) -> str:
-    """Return the LLM model name to use for AI mode."""
+def get_llm_base_url() -> str:
+    """Return the LLM API base URL."""
+    url = os.environ.get("ATLAS_LLM_BASE_URL", DEFAULT_LLM_BASE_URL)
+    return url.rstrip("/")
+
+
+def get_llm_model(override: Optional[str] = None) -> str:
+    """Return the LLM model name to use."""
     if override and override.strip():
         return override.strip()
-    return os.environ.get("ATLAS_AI_MODEL", "llama3.2").strip()
+    return os.environ.get("ATLAS_LLM_MODEL", DEFAULT_LLM_MODEL).strip()
 
-def get_ai_system_prompt() -> str:
+
+def get_system_prompt() -> str:
     """Return the system prompt for the AI assistant."""
-    return os.environ.get("ATLAS_AI_SYSTEM_PROMPT", DEFAULT_AI_PROMPT)
+    return os.environ.get("ATLAS_SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
 
-def get_ollama_host() -> str:
-    """Return the base URL for the Ollama server."""
-    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    return host.rstrip("/")
 
+# ---------------------------------------------------------------------------
+# MCP Docker Configuration (for backtesting agent)
+# ---------------------------------------------------------------------------
 
 MCP_ENDPOINT = os.environ.get("ATLAS_MCP_ENDPOINT", "http://localhost:3000")
 MCP_TOKEN = os.environ.get("ATLAS_MCP_TOKEN")
@@ -110,6 +114,11 @@ def get_backtest_image() -> str:
     """Return the default Docker image used for backtesting."""
     return DEFAULT_BACKTEST_IMAGE
 
+
+# ---------------------------------------------------------------------------
+# Search Configuration (SearxNG)
+# ---------------------------------------------------------------------------
+
 SEARXNG_ENDPOINT = os.environ.get("ATLAS_SEARXNG_ENDPOINT", "http://localhost:8080/search")
 SEARXNG_CATEGORIES = os.environ.get("ATLAS_SEARXNG_CATEGORIES")
 
@@ -124,3 +133,22 @@ def get_searxng_categories() -> list[str] | None:
     if not SEARXNG_CATEGORIES:
         return None
     return [part.strip() for part in SEARXNG_CATEGORIES.split(",") if part.strip()]
+
+
+# ---------------------------------------------------------------------------
+# Data Feed Configuration
+# ---------------------------------------------------------------------------
+
+def get_fred_api_key() -> str | None:
+    """Return the FRED API key for economic data."""
+    return os.environ.get("FRED_API_KEY")
+
+
+def get_polygon_api_key() -> str | None:
+    """Return the Polygon.io API key for market data."""
+    return os.environ.get("POLYGON_API_KEY")
+
+
+def get_twitter_bearer_token() -> str | None:
+    """Return the Twitter/X bearer token for social monitoring."""
+    return os.environ.get("TWITTER_BEARER_TOKEN")

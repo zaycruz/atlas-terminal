@@ -1,29 +1,50 @@
 [project]
 name = "atlas"
-version = "0.1.0"
-description = ""
+version = "0.2.0"
+description = "AI-native financial research platform"
 authors = [
     {name = "Your Name",email = "you@example.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.13,<4.0"
 dependencies = [
-    # Core trading/data SDK. Install with: pip install alpaca-py
-    "alpaca-py>=0.30.0",
+    # TUI framework
+    "textual>=0.50.0",
+    # LLM clients (OpenAI-compatible)
+    "openai>=1.30.0",
+    "httpx>=0.27.0",
+    # Backtesting libraries
+    "yfinance>=0.2.40",
+    "backtesting>=0.3.3",
+    "vectorbt>=0.26.0",
+    "pandas-ta>=0.3.14b",
+    "numpy>=1.26.0",
+    "pandas>=2.0.0",
+    # Web/data utilities
     "requests>=2.32.0",
-    "rich>=13.7.0",
-    "termcolor>=2.4.0",
-    "fastmcp (>=2.12.3,<3.0.0)",
-    "beautifulsoup4 (>=4.13.5,<5.0.0)",
+    "beautifulsoup4>=4.13.5,<5.0.0",
+    "feedparser>=6.0.0",
 ]
 
 [tool.poetry]
 packages = [{include = "atlas", from = "src"}]
 
 [project.scripts]
-# Exposes a terminal command `atlas` that runs our CLI.
-atlas = "atlas.cli:main"
+atlas = "atlas.tui.app:main"
 
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=4.1.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+norecursedirs = ["tests/legacy"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

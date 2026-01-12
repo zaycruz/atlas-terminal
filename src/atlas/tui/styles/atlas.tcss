@@ -1,0 +1,75 @@
+/* Atlas TUI Theme */
+
+Screen {
+    background: $background;
+}
+
+#header {
+    dock: top;
+    height: 1;
+    background: $primary;
+    color: $text;
+    text-align: center;
+}
+
+#main {
+    layout: horizontal;
+    height: 1fr;
+}
+
+#chat-area {
+    width: 60%;
+    height: 100%;
+    padding: 1;
+}
+
+#sidebar {
+    width: 40%;
+    height: 100%;
+    padding: 1;
+    border-left: solid $primary;
+}
+
+#chat {
+    height: 1fr;
+    margin-bottom: 1;
+}
+
+#input-container {
+    height: auto;
+    dock: bottom;
+}
+
+#input {
+    dock: bottom;
+    margin-top: 1;
+}
+
+#monitor {
+    margin-bottom: 1;
+}
+
+#jobs {
+    margin-bottom: 1;
+}
+
+#recent {
+    height: auto;
+}
+
+/* Widget common styles */
+.widget-title {
+    text-style: bold;
+    color: $secondary;
+    margin-bottom: 1;
+}
+
+/* Footer keybindings */
+Footer {
+    background: $primary;
+}
+
+FooterKey {
+    background: $primary-darken-1;
+    color: $text;
+}
